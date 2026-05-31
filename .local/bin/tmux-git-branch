@@ -1,0 +1,26 @@
+#!/bin/sh
+# Write the current git branch + dirty state to a per-tmux-pane file that the
+# tmux status bar cats (see status-right in ~/.tmux.conf). Shared by the zsh
+# precmd/chpwd hooks and an nvim FocusGained/BufWritePost autocmd, so the
+# indicator stays accurate even while nvim holds the pane — there's no shell
+# prompt redraw there to trigger the zsh hook.
+#
+# Usage: tmux-git-branch [pane-id] [dir]
+#   pane-id defaults to $TMUX_PANE; dir defaults to $PWD.
+pane="${1:-$TMUX_PANE}"
+[ -z "$pane" ] && exit 0
+[ -n "$2" ] && cd "$2" 2>/dev/null
+
+file="/tmp/tmux_branch_$pane"
+branch=$(git branch --show-current 2>/dev/null)
+if [ -n "$branch" ]; then
+  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+    color="#E67E80"
+    branch="$branch ✱"
+  else
+    color="#A7C080"
+  fi
+  printf '#[fg=#3d3d3d]│#[fg=%s] ⎇ %s #[fg=#859289]' "$color" "$branch" > "$file"
+else
+  printf '' > "$file"
+fi

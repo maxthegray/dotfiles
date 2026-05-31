@@ -1,0 +1,5 @@
+[user]
+	name = maxthegray
+	email = maximilian.i.reich@gmail.com
+[core]
+	excludesfile = ~/.gitignore_global
