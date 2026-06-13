@@ -43,11 +43,12 @@ function _tmux_update_branch() {
 add-zsh-hook chpwd _tmux_update_branch
 _tmux_update_branch
 
-# Clear stale Claude status file + refresh branch every prompt
+# Clear stale agent status files + refresh branch every prompt
 function _tmux_precmd() {
   print -rn -- $'\e[0m'   # defensive: clear any SGR (e.g. leaked underline) before prompt
   [ -z "$TMUX_PANE" ] && return
   rm -f "/tmp/claude_status_$TMUX_PANE"
+  rm -f "/tmp/codex_status_$TMUX_PANE"
   _tmux_update_branch
 }
 add-zsh-hook precmd _tmux_precmd
@@ -65,3 +66,14 @@ alias ccr='claude --resume'
 alias ccc='claude --continue'
 alias ccp='claude -p'
 alias cx='codex'
+
+# local LLMs via ollama (offline)
+alias coder='ollama run qwen2.5-coder:14b'   # coding chat REPL
+alias llm='ollama run llama3.1:8b'           # general chat REPL
+# one-shot: `ask "question"` or `cat file | ask "explain"` (defaults to llama)
+function ask() { ollama run llama3.1:8b "$*"; }
+# coding one-shot: `code-ask "write a binary search in java"`
+function code-ask() { ollama run qwen2.5-coder:14b "$*"; }
+# aider: repo-aware editing agent on the local coder model — `cd <project> && aid`
+export OLLAMA_API_BASE=http://127.0.0.1:11434
+alias aid='aider --model ollama_chat/qwen2.5-coder:14b'

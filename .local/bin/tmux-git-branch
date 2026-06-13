@@ -14,13 +14,27 @@ pane="${1:-$TMUX_PANE}"
 file="/tmp/tmux_branch_$pane"
 branch=$(git branch --show-current 2>/dev/null)
 if [ -n "$branch" ]; then
-  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-    color="#E67E80"
-    branch="$branch ✱"
+  # Branch name color = git lifecycle stage (warm = needs work, cool = at rest):
+  #   red unstaged → yellow staged → green committed → blue pushed/up-to-date.
+  # Earliest unfinished stage wins, so it answers "what's my next action".
+  status=$(git status --porcelain 2>/dev/null)
+  if printf '%s\n' "$status" | grep -qE '^(\?\?|.[MDARCU])'; then
+    color="#E67E80"   # unstaged changes (incl. untracked)
+  elif printf '%s\n' "$status" | grep -qE '^[MADRC]'; then
+    color="#DBBC7F"   # staged, ready to commit
   else
-    color="#A7C080"
+    ahead=$(git rev-list --count '@{upstream}..HEAD' 2>/dev/null)
+    if [ -z "$ahead" ] || [ "$ahead" -gt 0 ]; then
+      color="#A7C080" # committed locally, not pushed
+    else
+      color="#7FBBB3" # pushed, up to date with remote
+    fi
   fi
   printf '#[fg=#3d3d3d]│#[fg=%s] ⎇ %s #[fg=#859289]' "$color" "$branch" > "$file"
+elif git rev-parse --git-dir >/dev/null 2>&1 && sha=$(git rev-parse --short HEAD 2>/dev/null) && [ -n "$sha" ]; then
+  # Detached HEAD (rebase, bisect, checked-out tag/SHA) — no current branch.
+  # Purple + @sha so you know you're floating instead of the segment vanishing.
+  printf '#[fg=#3d3d3d]│#[fg=#D699B6] ⎇ @%s #[fg=#859289]' "$sha" > "$file"
 else
   printf '' > "$file"
 fi

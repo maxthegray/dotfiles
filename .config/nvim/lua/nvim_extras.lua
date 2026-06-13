@@ -184,7 +184,7 @@ if pcall(require, 'neo-tree') then
     filesystem = {
       follow_current_file = { enabled = true },          -- highlight the open file
       use_libuv_file_watcher = true,                     -- live-refresh on disk changes
-      filtered_items = { hide_dotfiles = false, hide_gitignored = false },
+      filtered_items = { hide_dotfiles = true, hide_gitignored = false },
     },
   })
   -- Kept on the backup key <leader>nT; nvim-tree owns <leader>nt below.
@@ -203,7 +203,7 @@ if pcall(require, 'nvim-tree') then
     view = { width = 40, side = 'left' },
     renderer = { group_empty = true },                -- collapse single-child folder chains (e.g. org/firstinspires/ftc/teamcode)
     update_focused_file = { enable = true },          -- highlight the open file
-    filters = { dotfiles = false, git_ignored = false, custom = { '^.DS_Store$' } },
+    filters = { dotfiles = true, git_ignored = false, custom = { '^.DS_Store$' } },
     git = { enable = true },
   })
   vim.keymap.set('n', '<leader>nt', '<cmd>NvimTreeToggle<cr>',
@@ -228,6 +228,9 @@ if pcall(require, 'claudecode') then
       LC_TERMINAL = '',
       LC_TERMINAL_VERSION = '',
       FORCE_HYPERLINK = '0',
+    },
+    terminal = {
+      split_side = 'left',
     },
   })
   local map = function(lhs, rhs, mode, desc)

@@ -136,6 +136,7 @@ let g:lightline.active = {
 
 let g:NERDTreeWinSize = 40
 let NERDTreeShowBookmarks = 1
+let NERDTreeShowHidden = 0
 
 " keymaps
 nmap <leader>so :source ~/.vimrc<cr>
