@@ -49,6 +49,7 @@ function _tmux_precmd() {
   [ -z "$TMUX_PANE" ] && return
   rm -f "/tmp/claude_status_$TMUX_PANE"
   rm -f "/tmp/codex_status_$TMUX_PANE"
+  rm -f "/tmp/ollama_status_$TMUX_PANE"
   _tmux_update_branch
 }
 add-zsh-hook precmd _tmux_precmd
@@ -67,13 +68,13 @@ alias ccc='claude --continue'
 alias ccp='claude -p'
 alias cx='codex'
 
-# local LLMs via ollama (offline)
-alias coder='ollama run qwen2.5-coder:14b'   # coding chat REPL
-alias llm='ollama run llama3.1:8b'           # general chat REPL
+# local LLMs via ollama (offline) — ollama-track tallies tokens into the tmux bar
+alias coder='ollama-track qwen2.5-coder:14b'   # coding chat REPL
+alias llm='ollama-track llama3.1:8b'           # general chat REPL
 # one-shot: `ask "question"` or `cat file | ask "explain"` (defaults to llama)
-function ask() { ollama run llama3.1:8b "$*"; }
+function ask() { ollama-track llama3.1:8b "$*"; }
 # coding one-shot: `code-ask "write a binary search in java"`
-function code-ask() { ollama run qwen2.5-coder:14b "$*"; }
+function code-ask() { ollama-track qwen2.5-coder:14b "$*"; }
 # aider: repo-aware editing agent on the local coder model — `cd <project> && aid`
 export OLLAMA_API_BASE=http://127.0.0.1:11434
 alias aid='aider --model ollama_chat/qwen2.5-coder:14b'

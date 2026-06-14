@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""ollama-track MODEL [prompt...]
+
+Chat with a local Ollama model over its HTTP API. Streams the reply cleanly
+(no verbose stats, no spinner), and writes a live token counter to the tmux
+pane status file so the tmux bar shows "<model> │ <tokens>", updating after
+every turn. Mirrors ~/.claude/statusline.py styling; the per-pane status file
+is cleared by _tmux_precmd in .zshrc when you return to the shell prompt.
+
+One-shot if a prompt is given (also reads piped stdin); interactive REPL else.
+"""
+import json
+import os
+import sys
+import threading
+import urllib.request
+import urllib.error
+
+try:
+    import readline  # noqa: F401 — enables arrow-key editing/history in input()
+except Exception:
+    pass
+
+API = os.environ.get("OLLAMA_API_BASE", "http://127.0.0.1:11434").rstrip("/")
+MODEL = sys.argv[1]
+PROMPT_ARGS = sys.argv[2:]
+PANE = os.environ.get("TMUX_PANE", "")
+STATUSFILE = f"/tmp/ollama_status_{PANE}" if PANE else None
+SHORT = MODEL.split(":")[0]
+
+total = 0
+
+
+def fmt(n):
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}K"
+    return str(n)
+
+
+def update_bar():
+    if not STATUSFILE:
+        return
+    line = (
+        f"#[fg=#3d3d3d]│#[fg=#859289] "
+        f"#[fg=#83a598]{SHORT}#[fg=#859289] "
+        f"#[fg=#3d3d3d]│#[fg=#859289] {fmt(total)} "
+    )
+    try:
+        with open(STATUSFILE, "w") as f:
+            f.write(line)
+    except OSError:
+        pass
+
+
+def clear_bar():
+    if STATUSFILE:
+        try:
+            os.remove(STATUSFILE)
+        except OSError:
+            pass
+
+
+_stop = threading.Event()
+
+
+def _heartbeat():
+    # Re-touch the status file every 2s so it stays "fresh" for the tmux bar's
+    # staleness gate, even while you sit at the >>> prompt between turns.
+    while not _stop.wait(2):
+        update_bar()
+
+
+def chat(messages):
+    """Stream one assistant turn. Prints reply live, returns its text, adds tokens."""
+    global total
+    body = json.dumps({"model": MODEL, "messages": messages, "stream": True}).encode()
+    req = urllib.request.Request(
+        f"{API}/api/chat", data=body, headers={"Content-Type": "application/json"}
+    )
+    parts = []
+    try:
+        with urllib.request.urlopen(req) as resp:
+            for raw in resp:
+                if not raw.strip():
+                    continue
+                obj = json.loads(raw)
+                chunk = (obj.get("message") or {}).get("content", "")
+                if chunk:
+                    sys.stdout.write(chunk)
+                    sys.stdout.flush()
+                    parts.append(chunk)
+                if obj.get("done"):
+                    total += obj.get("prompt_eval_count", 0) + obj.get("eval_count", 0)
+                    update_bar()
+    except urllib.error.URLError as e:
+        sys.stderr.write(
+            f"\n[ollama-track] cannot reach Ollama at {API} ({e}). "
+            f"Is the server running?  brew services start ollama\n"
+        )
+        sys.exit(1)
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+    return "".join(parts)
+
+
+def main():
+    messages = []
+
+    if PROMPT_ARGS:
+        text = " ".join(PROMPT_ARGS)
+        if not sys.stdin.isatty():
+            piped = sys.stdin.read().strip()
+            if piped:
+                text = f"{piped}\n\n{text}"
+        messages.append({"role": "user", "content": text})
+        chat(messages)
+        return
+
+    print(f"  {SHORT} — local chat · Ctrl-D or /bye to exit")
+    update_bar()  # show the model in the bar as soon as the session starts
+    threading.Thread(target=_heartbeat, daemon=True).start()
+    while True:
+        try:
+            user = input(">>> ")
+        except EOFError:
+            print()
+            break
+        cmd = user.strip()
+        if cmd in ("/bye", "/exit", "/quit"):
+            break
+        if not cmd:
+            continue
+        messages.append({"role": "user", "content": user})
+        try:
+            reply = chat(messages)
+        except KeyboardInterrupt:
+            print("\n[interrupted]")
+            messages.pop()
+            continue
+        messages.append({"role": "assistant", "content": reply})
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print()
+    finally:
+        _stop.set()
+        clear_bar()
