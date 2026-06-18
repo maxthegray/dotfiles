@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""ollama-bar-watch — publish the active Ollama chat's cumulative token usage to
+a global tmux status file (/tmp/ollama_status), so the tmux bar shows
+"<model> │ <tokens>" for whatever model is loaded — the native menu,
+`ollama run`, or the ollama-track aliases alike.
+
+The count is cumulative (prompt + generated tokens summed across every turn,
+mirroring `prompt_eval_count + eval_count`) for as long as the model stays
+loaded; it resets to 0 when the model unloads (≈ one conversation).
+
+It only *reads* the Ollama server log; it never touches Ollama or its requests.
+Meant to run as a long-lived background agent (see the LaunchAgent plist)."""
+import os
+import re
+import shutil
+import subprocess
+import threading
+import time
+
+LOG = os.environ.get("OLLAMA_LOG", "/opt/homebrew/var/log/ollama.log")
+STATUS = "/tmp/ollama_status"
+OLLAMA = shutil.which("ollama") or "/opt/homebrew/bin/ollama"
+
+# llama.cpp prints one "total time = … / N tokens" line per completed turn,
+# where N = prompt-eval tokens + generated tokens for that turn.
+RE_TURN = re.compile(r"total time =.*?/\s*(\d+)\s*tokens")
+
+_lock = threading.Lock()
+total = None      # cumulative tokens; None means "idle, hide the bar"
+model = ""
+
+
+def fmt(n):
+    if n is None:
+        return "?"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}K"
+    return str(n)
+
+
+def model_name():
+    """Friendly name of the currently loaded model, via `ollama ps` (or "")."""
+    try:
+        out = subprocess.run(
+            [OLLAMA, "ps"], capture_output=True, text=True, timeout=3
+        ).stdout.splitlines()
+    except Exception:
+        return ""
+    if len(out) >= 2 and out[1].strip():
+        return out[1].split()[0].split(":")[0]
+    return ""
+
+
+def write_bar():
+    with _lock:
+        m = model or "ollama"
+        line = (
+            f"#[fg=#3d3d3d]│#[fg=#859289] "
+            f"#[fg=#83a598]{m}#[fg=#859289] "
+            f"#[fg=#3d3d3d]│#[fg=#859289] {fmt(total)} "
+        )
+    try:
+        with open(STATUS, "w") as f:
+            f.write(line)
+    except OSError:
+        pass
+
+
+def clear_bar():
+    try:
+        os.remove(STATUS)
+    except OSError:
+        pass
+
+
+def heartbeat():
+    """While a model stays loaded, re-touch the bar every 2s so tmux's staleness
+    gate keeps it visible between turns. When the model unloads, drop the bar and
+    reset the cumulative count. Idle (no `ollama ps` churn) until a chat happens."""
+    global total, model
+    misses = 0
+    while True:
+        time.sleep(2)
+        if total is None:
+            continue
+        if model_name():
+            misses = 0
+            write_bar()
+        else:
+            # A single empty `ollama ps` can just be a poll that timed out while
+            # the GPU was busy generating — don't reset on that. Only treat it as
+            # a real unload after several consecutive misses (~6s).
+            misses += 1
+            if misses >= 3:
+                clear_bar()
+                with _lock:
+                    total = None
+                    model = ""
+            else:
+                write_bar()
+
+
+def tail(path):
+    """Yield new lines, following across truncation/rotation."""
+    while True:
+        try:
+            with open(path) as f:
+                f.seek(0, os.SEEK_END)
+                while True:
+                    line = f.readline()
+                    if line:
+                        yield line
+                        continue
+                    time.sleep(0.2)
+                    try:
+                        if os.stat(path).st_size < f.tell():
+                            break  # rotated/truncated — reopen
+                    except OSError:
+                        break
+        except FileNotFoundError:
+            time.sleep(1)
+
+
+def main():
+    global total, model
+    threading.Thread(target=heartbeat, daemon=True).start()
+    for line in tail(LOG):
+        m = RE_TURN.search(line)
+        if not m:
+            continue
+        n = int(m.group(1))
+        name = model_name() or model
+        with _lock:
+            if name != model:      # new model loaded → new conversation
+                model = name
+                total = 0
+            elif total is None:
+                total = 0
+            total += n
+        write_bar()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

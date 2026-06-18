@@ -1,15 +1,14 @@
 -- Neovim-only extras: native LSP (nvim 0.11 API). No plugins required.
 -- Loaded from init.vim after ~/.vimrc, so it never runs under classic Vim.
 
--- Match the look of classic Vim: dogrun is a truecolor scheme, but Vim only
--- ever rendered its 256-color (cterm) palette, whose background blends with the
--- terminal. Neovim auto-enables 'termguicolors' on truecolor terminals, which
--- pulls in dogrun's real guibg (#222433, a blue/indigo) instead. Force cterm so
--- nvim looks identical to Vim. Re-assert on VimEnter in case the UI's truecolor
--- detection flips it back on after init.
-vim.o.termguicolors = false
+-- Everforest is a true-color scheme designed to be seen in 24-bit color, so let
+-- nvim use it: turn 'termguicolors' on (classic Vim stays on the 256 cterm
+-- palette, which everforest also ships). This is the cohesion win — the editor
+-- now matches the Everforest tmux bar + starship prompt instead of muting itself.
+-- Re-assert on VimEnter in case anything flips it during init.
+vim.o.termguicolors = true
 vim.api.nvim_create_autocmd('VimEnter', {
-  callback = function() vim.o.termguicolors = false end,
+  callback = function() vim.o.termguicolors = true end,
 })
 
 -- Classic Vim left the terminal cursor a block in every mode; nvim defaults to a
@@ -60,10 +59,13 @@ vim.lsp.config['pylsp'] = {
   settings = {
     pylsp = {
       plugins = {
-        flake8 = { enabled = true },
-        -- flake8 covers linting; silence the overlapping default checkers.
+        -- pyflakes only: report real problems (undefined names, unused imports
+        -- and variables, syntax errors) — no PEP 8 style/convention noise.
+        -- flake8 is off because it bundles pycodestyle's style checks (e.g. E265
+        -- "block comment should start with '# '") alongside the useful ones.
+        pyflakes = { enabled = true },
+        flake8 = { enabled = false },
         pycodestyle = { enabled = false },
-        pyflakes = { enabled = false },
         mccabe = { enabled = false },
       },
     },
@@ -130,21 +132,43 @@ vim.api.nvim_create_autocmd({ 'FocusGained', 'BufWritePost' }, {
   callback = _refresh_tmux_branch,
 })
 
+-- Neovim 0.11 ships global LSP keymaps under the `gr` prefix (grn=rename,
+-- gra=code action, grr=references, gri=implementation). Because they all start
+-- with `gr`, a bare `gr` (and `gi`) stalls for the full 'timeoutlen' before
+-- firing — which feels like the key "doesn't work". We have our own maps for all
+-- of these (gr, gi, <leader>rn, <leader>ca), so delete the defaults to free the
+-- prefix and make gr/gi instant. (gO=document_symbol is left alone — no clash.)
+for _, lhs in ipairs({ 'grn', 'gra', 'grr', 'gri' }) do
+  pcall(vim.keymap.del, 'n', lhs)
+end
+
 vim.api.nvim_create_autocmd('LspAttach', {
   callback = function(ev)
     local client = vim.lsp.get_client_by_id(ev.data.client_id)
-    local function map(lhs, rhs) vim.keymap.set('n', lhs, rhs, { buffer = ev.buf, silent = true }) end
-    map('gd', vim.lsp.buf.definition)
-    map('gr', vim.lsp.buf.references)
-    map('gi', vim.lsp.buf.implementation)
-    map('gt', vim.lsp.buf.type_definition)
-    map('gs', vim.lsp.buf.document_symbol)
-    map('gS', vim.lsp.buf.workspace_symbol)
-    map('K',  vim.lsp.buf.hover)
-    map('<leader>rn', vim.lsp.buf.rename)
-    map('<leader>ca', vim.lsp.buf.code_action)
-    map('[g', function() vim.diagnostic.jump({ count = -1, float = true }) end)
-    map(']g', function() vim.diagnostic.jump({ count = 1, float = true }) end)
+    -- desc on each map so the ',?' keymap finder can be searched by meaning
+    -- (type "go to definition" -> shows gd).
+    local function map(lhs, rhs, desc) vim.keymap.set('n', lhs, rhs, { buffer = ev.buf, silent = true, desc = desc }) end
+    map('gd', vim.lsp.buf.definition,       'Go to definition')
+    map('gr', vim.lsp.buf.references,       'List references')
+    -- gi: go to implementation, but fall back to definition on servers that
+    -- don't support it (pylsp, kotlin-language-server) instead of toasting a
+    -- "method not supported" message.
+    map('gi', function()
+      for _, c in ipairs(vim.lsp.get_clients({ bufnr = ev.buf })) do
+        if c:supports_method('textDocument/implementation') then
+          return vim.lsp.buf.implementation()
+        end
+      end
+      vim.lsp.buf.definition()
+    end, 'Go to implementation (falls back to definition)')
+    map('gt', vim.lsp.buf.type_definition,  'Go to type definition')
+    map('gs', vim.lsp.buf.document_symbol,  'Document symbols')
+    map('gS', vim.lsp.buf.workspace_symbol, 'Workspace symbols')
+    map('K',  vim.lsp.buf.hover,            'Hover docs')
+    map('<leader>rn', vim.lsp.buf.rename,      'Rename symbol')
+    map('<leader>ca', vim.lsp.buf.code_action, 'Code action')
+    map('[g', function() vim.diagnostic.jump({ count = -1, float = true }) end, 'Previous diagnostic')
+    map(']g', function() vim.diagnostic.jump({ count = 1, float = true }) end,  'Next diagnostic')
 
     -- 1. Autocomplete as you type — native nvim 0.11 completion, no plugin.
     --    autotrigger pops the menu on the server's trigger chars (e.g. `.`);
@@ -162,15 +186,52 @@ vim.api.nvim_create_autocmd('LspAttach', {
     map('<leader>ih', function()
       vim.lsp.inlay_hint.enable(
         not vim.lsp.inlay_hint.is_enabled({ bufnr = ev.buf }), { bufnr = ev.buf })
-    end)
+    end, 'Toggle inlay hints')
 
     -- 3. Format the buffer via the language server. <leader>F (capital, to avoid
     --    clashing with the vimrc's <leader>fzf mapping).
     if client and client:supports_method('textDocument/formatting') then
-      map('<leader>F', function() vim.lsp.buf.format({ async = true }) end)
+      map('<leader>F', function() vim.lsp.buf.format({ async = true }) end, 'Format buffer (LSP)')
     end
   end,
 })
+
+-- ---------------------------------------------------------------------------
+-- Treesitter: syntax-aware highlighting + indent + function/class/param
+-- textobjects. With termguicolors on (above), treesitter highlights render in
+-- everforest's full true-color palette.
+-- ---------------------------------------------------------------------------
+
+if pcall(require, 'nvim-treesitter.configs') then
+  require('nvim-treesitter.configs').setup({
+    ensure_installed = {
+      'kotlin', 'java', 'python', 'c', 'cpp', 'lua', 'bash',
+      'json', 'yaml', 'toml', 'markdown', 'markdown_inline', 'vim', 'vimdoc',
+    },
+    highlight = { enable = true },
+    indent = { enable = true },
+    textobjects = {
+      select = {
+        enable = true,
+        lookahead = true,
+        keymaps = {
+          ['af'] = '@function.outer',
+          ['if'] = '@function.inner',
+          ['ac'] = '@class.outer',
+          ['ic'] = '@class.inner',
+          ['aa'] = '@parameter.outer',
+          ['ia'] = '@parameter.inner',
+        },
+      },
+      move = {
+        enable = true,
+        set_jumps = true,
+        goto_next_start = { [']f'] = '@function.outer', [']]'] = '@class.outer' },
+        goto_previous_start = { ['[f'] = '@function.outer', ['[['] = '@class.outer' },
+      },
+    },
+  })
+end
 
 -- ---------------------------------------------------------------------------
 -- Neo-tree file explorer (nvim replacement for NERDTree). Reuses <leader>nt
@@ -245,4 +306,36 @@ if pcall(require, 'claudecode') then
   map('<leader>cs', '<cmd>ClaudeCodeSend<cr>',        'v', 'Send selection to Claude')
   map('<leader>cy', '<cmd>ClaudeCodeDiffAccept<cr>',  'n', 'Accept diff')
   map('<leader>cn', '<cmd>ClaudeCodeDiffDeny<cr>',    'n', 'Deny diff')
+end
+
+-- ---------------------------------------------------------------------------
+-- snacks.nvim: already pulled in as a claudecode dependency, so these modules
+-- cost nothing extra. Enable the visual ones to round out the look:
+--   indent    — subtle indent guides (handy for deep org/.../ftc/teamcode trees)
+--   scroll    — smooth scrolling (set scroll = { enabled = false } to disable)
+--   notifier  — styled popups for LSP/notify messages instead of cmdline echo
+--   picker    — fuzzy finder; powers the ',?' keymap search below
+-- ---------------------------------------------------------------------------
+
+if pcall(require, 'snacks') then
+  require('snacks').setup({
+    -- Dashboard off: land in a plain empty buffer like classic Vim, where the
+    -- normal leader maps (e.g. ',fzf' -> :Files) work instead of a start screen's
+    -- own single-key shortcuts.
+    dashboard = { enabled = false },
+    -- animate.enabled = false: keep the static indent + scope guides, but drop
+    -- the animated draw that sweeps in around the enclosing brackets on cursor
+    -- move. (Set scope = { enabled = false } to remove the bracket guide entirely.)
+    indent = { enabled = true, animate = { enabled = false } },
+    scroll = { enabled = false },
+    notifier = { enabled = true },
+    picker = { enabled = true },
+  })
+
+  -- ',?' — fuzzy keymap finder. Type what you want to do ("go to definition")
+  -- and it surfaces the key (gd), matching on the descriptions set throughout
+  -- this file. Opens only on ',?' — nothing pops up on its own. <CR> runs the
+  -- selected mapping. (Overrides the classic-Vim ':Maps' fallback from ~/.vimrc.)
+  vim.keymap.set('n', '<leader>?', function() require('snacks').picker.keymaps() end,
+    { silent = true, desc = 'Search keymaps' })
 end

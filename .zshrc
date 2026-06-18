@@ -33,6 +33,17 @@ ZSH_HIGHLIGHT_STYLES[function]='fg=#83a598'
 # zoxide (smart cd — z <partial name> jumps to frecent dirs)
 eval "$(zoxide init zsh)"
 
+# yazi (terminal file manager). `y` instead of `yazi` so that quitting with q
+# cd's the shell into the directory you ended up in. Quit with Q to stay put.
+function y() {
+	local tmp cwd
+	tmp="$(mktemp -t yazi-cwd.XXXXXX)"
+	yazi "$@" --cwd-file="$tmp"
+	IFS= read -r -d '' cwd < "$tmp"
+	[ -n "$cwd" ] && [ "$cwd" != "$PWD" ] && builtin cd -- "$cwd"
+	rm -f -- "$tmp"
+}
+
 # Write git branch to per-pane file so tmux status bar is always accurate.
 # Logic lives in ~/.local/bin/tmux-git-branch so nvim can call it too (see its
 # FocusGained autocmd) and keep the indicator fresh while nvim holds the pane.
@@ -68,13 +79,29 @@ alias ccc='claude --continue'
 alias ccp='claude -p'
 alias cx='codex'
 
-# local LLMs via ollama (offline) — ollama-track tallies tokens into the tmux bar
+# local LLMs via ollama (offline). The tmux token bar is now driven globally by
+# the ollama-bar-watch LaunchAgent (tails the server log) — works for the native
+# menu / `ollama run` / any model, so these stay plain ollama-track aliases.
 alias coder='ollama-track qwen2.5-coder:14b'   # coding chat REPL
 alias llm='ollama-track llama3.1:8b'           # general chat REPL
+alias gemma='ollama-track gemma4:latest'       # gemma chat REPL
 # one-shot: `ask "question"` or `cat file | ask "explain"` (defaults to llama)
 function ask() { ollama-track llama3.1:8b "$*"; }
+# gemma one-shot: `gemma-ask "question"`
+function gemma-ask() { ollama-track gemma4:latest "$*"; }
 # coding one-shot: `code-ask "write a binary search in java"`
 function code-ask() { ollama-track qwen2.5-coder:14b "$*"; }
 # aider: repo-aware editing agent on the local coder model — `cd <project> && aid`
 export OLLAMA_API_BASE=http://127.0.0.1:11434
 alias aid='aider --model ollama_chat/qwen2.5-coder:14b'
+
+export OLLAMA_NOHISTORY=1
+function _ollama_no_histsave() {
+  emulate -L zsh
+  case ${1%%$'\n'} in
+    'ask '*|'code-ask '*|'gemma-ask '*|'ollama-track '*) return 1 ;;
+    'ollama run '*' '*) return 1 ;;
+  esac
+  return 0
+}
+add-zsh-hook zshaddhistory _ollama_no_histsave

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Keep the native Claude Code install current from outside any running session.
+# The in-session auto-updater is disabled (DISABLE_AUTOUPDATER=1 in
+# ~/.claude/settings.json) because it fails intermittently and nags; this runs
+# the reliable CLI updater on a schedule via a launchd agent instead.
+#
+# Loaded by ~/Library/LaunchAgents/com.maximilianreich.claudeupdate.plist.
+log="$HOME/.cache/claude/autoupdate.log"
+mkdir -p "$(dirname "$log")"
+printf '\n=== %s ===\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$log"
+# DISABLE_AUTOUPDATER guards the interactive client; the explicit `update`
+# subcommand still works with it set.
+"$HOME/.local/bin/claude" update >> "$log" 2>&1
+printf 'exit: %s\n' "$?" >> "$log"
