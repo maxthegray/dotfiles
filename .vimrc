@@ -4,26 +4,20 @@ filetype off
 call plug#begin()
 
 Plug 'tpope/vim-fugitive'
-Plug 'git://git.wincent.com/command-t.git'
 Plug 'rstacruz/sparkup', {'rtp': 'vim/'}
 Plug 'tpope/vim-surround'
 Plug 'tpope/vim-repeat'
 Plug 'tpope/vim-commentary'
-Plug 'ctrlpvim/ctrlp.vim'
 Plug 'itchyny/lightline.vim'
 Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
 Plug 'junegunn/fzf.vim'
-Plug 'preservim/nerdtree'
 Plug 'wadackel/vim-dogrun'
 Plug 'sainnhe/everforest'
 Plug 'github/copilot.vim'
 
 " nvim-only lua plugins (guarded so plain vim ignores them)
 if has('nvim')
-  Plug 'nvim-lua/plenary.nvim'
-  Plug 'MunifTanjim/nui.nvim'
   Plug 'nvim-tree/nvim-web-devicons'
-  Plug 'nvim-neo-tree/neo-tree.nvim'
   Plug 'nvim-tree/nvim-tree.lua'
   " syntax-aware highlighting + textobjects (kotlin/java/etc.). Pinned to the
   " stable 'master' branch — upstream's new default 'main' is an incompatible
@@ -153,14 +147,10 @@ let g:lightline.active = {
     \            [ 'percent' ],
     \            [ 'fileformat', 'fileencoding', 'filetype' ] ] }
 
-let g:NERDTreeWinSize = 40
-let NERDTreeShowBookmarks = 1
-let NERDTreeShowHidden = 0
-
 " keymaps
 nmap <leader>so :source ~/.vimrc<cr>
 nmap <leader>rc :e $MYVIMRC<cr>
-nmap <leader>nt :NERDTree<cr>
+" <leader>nt opens the file tree under nvim (nvim-tree, set in nvim_extras.lua)
 nmap <leader>fzf :Files<cr>
 " fuzzy-find keymaps — type what you're looking for (fzf.vim's :Maps)
 nmap <leader>? :Maps<cr>

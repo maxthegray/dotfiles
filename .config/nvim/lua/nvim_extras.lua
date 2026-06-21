@@ -34,8 +34,12 @@ local gradle_roots = {
 -- Server definitions
 -- ---------------------------------------------------------------------------
 
+-- Official JetBrains Kotlin LSP (brew JetBrains/utils/kotlin-lsp), replacing the
+-- unmaintained fwilhe2 kotlin-language-server. Far better Gradle/Android
+-- resolution. Runs over stdio; --system-path keeps its caches/indexes out of the
+-- project tree and persistent across restarts (mirrors the jdtls -data dir).
 vim.lsp.config['kotlin'] = {
-  cmd = { 'kotlin-language-server' },
+  cmd = { 'kotlin-lsp', '--stdio', '--system-path', vim.fn.expand('~/.cache/kotlin-lsp') },
   filetypes = { 'kotlin' },
   root_markers = gradle_roots,
 }
@@ -234,27 +238,7 @@ if pcall(require, 'nvim-treesitter.configs') then
 end
 
 -- ---------------------------------------------------------------------------
--- Neo-tree file explorer (nvim replacement for NERDTree). Reuses <leader>nt
--- (the vimrc maps it to :NERDTree; this runs after the source, so it wins).
--- ---------------------------------------------------------------------------
-
-if pcall(require, 'neo-tree') then
-  require('neo-tree').setup({
-    close_if_last_window = true,
-    window = { width = 40, position = 'left' },          -- matches old NERDTreeWinSize
-    filesystem = {
-      follow_current_file = { enabled = true },          -- highlight the open file
-      use_libuv_file_watcher = true,                     -- live-refresh on disk changes
-      filtered_items = { hide_dotfiles = true, hide_gitignored = false },
-    },
-  })
-  -- Kept on the backup key <leader>nT; nvim-tree owns <leader>nt below.
-  vim.keymap.set('n', '<leader>nT', '<cmd>Neotree toggle<cr>',
-    { silent = true, desc = 'Toggle Neo-tree' })
-end
-
--- ---------------------------------------------------------------------------
--- nvim-tree: the lighter NERDTree replacement. Active explorer on <leader>nt.
+-- nvim-tree: the sole file explorer (replaced NERDTree + neo-tree). <leader>nt.
 -- ---------------------------------------------------------------------------
 
 if pcall(require, 'nvim-tree') then
@@ -291,7 +275,16 @@ if pcall(require, 'claudecode') then
       FORCE_HYPERLINK = '0',
     },
     terminal = {
-      split_side = 'left',
+      split_side = 'right',
+      -- snacks links the terminal window's Normal -> SnacksNormal, which (since
+      -- everforest doesn't define it) falls back to NormalFloat — a different bg
+      -- (bg_dim/bg2) than the editor. Force it back to the editor Normal so the
+      -- Claude split's background matches the rest of nvim.
+      snacks_win_opts = {
+        wo = {
+          winhighlight = 'Normal:Normal,NormalNC:Normal,SignColumn:Normal',
+        },
+      },
     },
   })
   local map = function(lhs, rhs, mode, desc)

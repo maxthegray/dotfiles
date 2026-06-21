@@ -17,8 +17,8 @@ style = "fg:#E67E80"
 format = "[$all_status$ahead_behind]($style)"
 
 [character]
-success_symbol = "[μ](fg:#A7C080)"
-error_symbol = "[μ](fg:#E67E80)"
+success_symbol = "[λ](fg:#A7C080)"
+error_symbol = "[λ](fg:#E67E80)"
 
 # Disable noisy modules
 [package]
