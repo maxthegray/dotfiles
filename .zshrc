@@ -83,10 +83,10 @@ alias cx='codex'
 # the ollama-bar-watch LaunchAgent (tails the server log) — works for the native
 # menu / `ollama run` / any model, so these stay plain ollama-track aliases.
 alias coder='ollama-track qwen2.5-coder:14b'   # coding chat REPL
-alias llm='ollama-track llama3.1:8b'           # general chat REPL
+alias llm='ollama-track gemma4:latest'         # general chat REPL
 alias gemma='ollama-track gemma4:latest'       # gemma chat REPL
-# one-shot: `ask "question"` or `cat file | ask "explain"` (defaults to llama)
-function ask() { ollama-track llama3.1:8b "$*"; }
+# one-shot: `ask "question"` or `cat file | ask "explain"` (defaults to gemma4)
+function ask() { ollama-track gemma4:latest "$*"; }
 # gemma one-shot: `gemma-ask "question"`
 function gemma-ask() { ollama-track gemma4:latest "$*"; }
 # coding one-shot: `code-ask "write a binary search in java"`

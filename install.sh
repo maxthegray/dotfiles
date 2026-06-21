@@ -7,7 +7,7 @@ set -euo pipefail
 DOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 PATHS=(
-  .zshrc
+  .zshrc .zprofile .zshenv
   .vimrc .tmux.conf
   .gitconfig .gitignore_global
   .config/nvim .config/starship.toml .config/lazygit
