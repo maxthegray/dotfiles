@@ -12,6 +12,7 @@ PATHS=(
   .gitconfig .gitignore_global
   .config/nvim .config/starship.toml .config/lazygit
   .local/bin/tmux-git-branch .local/bin/termtheme
+  .claude/statusline.py .claude/settings.json
 )
 
 for rel in "${PATHS[@]}"; do
