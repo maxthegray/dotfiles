@@ -24,6 +24,7 @@ if has('nvim')
   " rewrite with a different setup API.
   Plug 'nvim-treesitter/nvim-treesitter', { 'do': ':TSUpdate', 'branch': 'master' }
   Plug 'nvim-treesitter/nvim-treesitter-textobjects', { 'branch': 'master' }
+  Plug 'rebelot/kanagawa.nvim'
   " claude code ide integration (cli connects to nvim like the vs code ext)
   Plug 'folke/snacks.nvim'
   Plug 'coder/claudecode.nvim'
@@ -51,20 +52,19 @@ nnoremap <C-w><Down>  <Cmd>resize -2<CR>
 nnoremap <C-w><Left>  <Cmd>vertical resize +2<CR>
 nnoremap <C-w><Right> <Cmd>vertical resize -2<CR>
 
-" Everforest — unifies the editor with the Everforest tmux bar + starship prompt.
-" Renders truecolor in Neovim (termguicolors is forced on in nvim_extras.lua) and
-" falls back to everforest's 256-color cterm palette under classic Vim. 'hard' is
-" the darkest background, closest to the tmux bar's near-black bg. (dogrun is still
-" installed above as a fallback: `colorscheme dogrun`.)
-set background=dark
-let g:everforest_background = 'hard'
-let g:everforest_better_performance = 1
-let g:everforest_enable_italic = 1
-" Use the terminal's own background instead of everforest's painted bg, so the
-" editor blends with the tmux bar / terminal the way the old 256-color scheme did
-" (you keep everforest's syntax colors, just not its background fill).
-let g:everforest_transparent_background = 1
-colorscheme everforest
+" Coordinated terminal theme. Keep the current Everforest setup as a complete
+" fallback so Vim remains usable before termtheme has generated its cache.
+if filereadable(expand('~/.cache/termtheme/nvim.vim'))
+  source ~/.cache/termtheme/nvim.vim
+else
+  set background=dark
+  let g:everforest_background = 'hard'
+  let g:everforest_better_performance = 1
+  let g:everforest_enable_italic = 1
+  let g:everforest_transparent_background = 1
+  let g:termtheme_lightline = 'everforest'
+  colorscheme everforest
+endif
 
 " strip trailing whitespace on python save
 autocmd BufWritePre *.py  :%s/\s\+$//e
@@ -118,14 +118,14 @@ set sidescroll=1
 set completeopt+=menuone
 set completeopt-=preview
 
-" lightline (custom mode labels + everforest theme to match the bar)
+" lightline (custom mode labels + active coordinated theme)
 set noshowmode
 set laststatus=2
 if !has('gui_running')
   set t_Co=256
 endif
 let g:lightline = {
-    \ 'colorscheme': 'everforest',
+    \ 'colorscheme': get(g:, 'termtheme_lightline', 'everforest'),
     \ }
 let g:lightline.mode_map = {
     \ 'n' : 'N :)',

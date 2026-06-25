@@ -11,6 +11,19 @@ vim.api.nvim_create_autocmd('VimEnter', {
   callback = function() vim.o.termguicolors = true end,
 })
 
+-- `theme <name>` sends SIGUSR1 to running Neovim processes after atomically
+-- replacing this generated file. New instances source the same file in .vimrc.
+vim.api.nvim_create_autocmd('Signal', {
+  pattern = 'SIGUSR1',
+  callback = function()
+    local path = vim.fn.expand('~/.cache/termtheme/nvim.vim')
+    if vim.fn.filereadable(path) == 1 then
+      local ok, err = pcall(vim.cmd.source, path)
+      if not ok then vim.notify('termtheme reload failed: ' .. err, vim.log.levels.ERROR) end
+    end
+  end,
+})
+
 -- Classic Vim left the terminal cursor a block in every mode; nvim defaults to a
 -- thin bar in insert/replace. Force block everywhere to match.
 vim.o.guicursor = 'a:block'

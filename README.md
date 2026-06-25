@@ -19,7 +19,25 @@ rustup, etc. regenerate that per machine.)
 **terminal & prompt**
 - `.tmux.conf` — tmux: C-a prefix, hjkl panes, status bar, lazygit/cheatsheet popups
 - `.config/starship.toml` — the actual prompt (minimal: dir + git)
+- `.config/termtheme/themes` — coordinated palette and per-app theme mappings
+- `.local/bin/termtheme` — switches iTerm2, tmux, Starship, Vim/Neovim, and Codex while preserving Claude Code's selected theme
 - `.local/bin/tmux-git-branch` — writes the per-pane git branch the tmux status bar shows
+
+## switch the terminal theme
+
+```sh
+theme everforest
+theme dogrun
+theme kanagawa-dragon
+termtheme list
+termtheme doctor
+```
+
+Theme manifests are versioned. Runtime fragments are generated atomically under
+`~/.cache/termtheme`; Codex receives a stable managed theme file in its normal
+theme directory. Claude Code's selected theme is deliberately left unchanged.
+Running Neovim instances and the tmux server are reloaded automatically. An
+existing Codex session may need to be restarted for its syntax theme to reload.
 
 **git**
 - `.gitconfig` — identity + points at the global ignore

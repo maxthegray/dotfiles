@@ -1,5 +1,10 @@
 export TERM=xterm-256color
 
+# Starship launches for every prompt, so a stable generated config path makes
+# prompt colors switch without restarting the shell. Fall back to the tracked
+# Everforest config before termtheme has been initialized.
+export STARSHIP_CONFIG="${XDG_CACHE_HOME:-$HOME/.cache}/termtheme/starship.toml"
+[ -r "$STARSHIP_CONFIG" ] || export STARSHIP_CONFIG="$HOME/.config/starship.toml"
 eval "$(starship init zsh)"
 
 
@@ -29,6 +34,20 @@ ZSH_HIGHLIGHT_STYLES[command]='fg=#83a598'
 ZSH_HIGHLIGHT_STYLES[builtin]='fg=#83a598'
 ZSH_HIGHLIGHT_STYLES[alias]='fg=#83a598'
 ZSH_HIGHLIGHT_STYLES[function]='fg=#83a598'
+_termtheme_zsh="${XDG_CACHE_HOME:-$HOME/.cache}/termtheme/zsh.zsh"
+[ -r "$_termtheme_zsh" ] && source "$_termtheme_zsh"
+
+# The executable performs durable and live application work. This wrapper also
+# sources shell-local colors, which a child process cannot change in its parent.
+function termtheme() {
+  "$HOME/.local/bin/termtheme" "$@"
+  local result=$?
+  if (( result == 0 )) && [ -r "$_termtheme_zsh" ]; then
+    source "$_termtheme_zsh"
+  fi
+  return $result
+}
+function theme() { termtheme use "$@"; }
 
 # zoxide (smart cd — z <partial name> jumps to frecent dirs)
 eval "$(zoxide init zsh)"

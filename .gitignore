@@ -10,6 +10,7 @@ oauth.json
 # History & caches
 .zsh_history
 .python_history
+__pycache__/
 .lesshst
 .viminfo
 .zcompdump*

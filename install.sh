@@ -11,7 +11,7 @@ PATHS=(
   .vimrc .tmux.conf
   .gitconfig .gitignore_global
   .config/nvim .config/starship.toml .config/lazygit
-  .local/bin/tmux-git-branch
+  .local/bin/tmux-git-branch .local/bin/termtheme
 )
 
 for rel in "${PATHS[@]}"; do
